@@ -1,0 +1,23 @@
+/*
+题目：
+1、定义一个double类型变量num，并赋初始值为8.8。
+2、定义一个指向double类型变量的指针ptr_1，并让其指向num。
+3、定义一个二级指针ptr_2指向ptr_1。
+4、通过操作二级指针ptr_2修改num的值88.88。
+要求打印出num修改前后的值（保留两位小数）。
+
+打印格式：
+修改前，num的值是：...
+修改后，num的值是：...
+*/
+#include <stdio.h>
+
+int main() {
+    double num = 8.8;
+    double* ptr_1 = &num;
+    double** ptr_2 = &ptr_1;
+
+    printf("修改前，num的值为：%.2lf\n", num);
+    **ptr_2 = 88.88;
+    printf("修改后，num的值为：%.2lf\n", num);
+}
