@@ -29,5 +29,6 @@ int main()
             printf("素数%d\n", i);
         }
     }
+    printf("素数的个数为%d\n", end - start + 1);
     return 0;
 }
