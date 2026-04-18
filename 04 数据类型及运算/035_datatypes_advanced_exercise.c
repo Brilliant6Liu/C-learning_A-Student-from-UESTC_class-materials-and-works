@@ -32,7 +32,7 @@ int main()
   printf("%11hu\n", line_3);
   printf("%11d\n", line_4);
   printf("%11d\n", line_5);
-  printf("%11ld\n", line_6);
+  printf("%11llu\n", line_6);
   printf("%11hd\n", line_7);
   printf("%11hd\n", line_8);
   printf("%11hd\n", line_9);
