@@ -1,6 +1,7 @@
 #include <stdio.h>
 
-int main() {
+int main()
+{
     /*
     练习1：
     1、定义一个double类型变量num_f，并赋值为70.99。
@@ -37,7 +38,3 @@ int main() {
     result = (double)f_1 / f_2;
     printf("将f_1强制转换为double类型，再计算：%.10lf\n", result);
 }
-
-
-
-
