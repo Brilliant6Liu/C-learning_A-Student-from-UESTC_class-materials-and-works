@@ -1,5 +1,5 @@
 /*
-题目： 
+题目：
 编写一段代码，根据房型和住宿天数打印出对应的总价。
 
 计价标准如下：
@@ -15,48 +15,54 @@
 */
 #include <stdio.h>
 
-int main() {
+int main()
+{
     int room_type = 2;
-    int days = -5;
+    int days = 5;
     int price = 0;
 
-    if (days < 0) {
+    if (days < 0)
+    {
         printf("执行错误，提供的天数为负数。\n");
         return 1;
     }
 
-    switch(room_type) {
+    switch (room_type)
+    {
+    case 1:
+        switch (days)
+        {
+        case 0:
         case 1:
-            switch(days) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                    price = 100 * days;
-                    break;
-                default:
-                    price = 300 + 80 * (days - 3);
-            }
-            printf("单人房，住宿%d天，价格为%d元。\n", days, price);
-            break;
         case 2:
-            switch(days) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                    price = 180 * days;
-                    break;
-                default:
-                    price = 180 * 3 + 150 * (days - 3);
-            }
-            printf("双人房，住宿%d天，价格为%d元.\n", days, price);
-            break;
         case 3:
-            price = 1000 * days;
-            printf("豪华套房，住宿%d天，价格为%d元。\n", days, price);
+            price = 100 * days;
             break;
         default:
-            printf("找不到匹配的房型。\n");
+            price = 300 + 80 * (days - 3);
+        }
+        printf("单人房，住宿%d天，价格为%d元。\n", days, price);
+        break;
+    case 2:
+        switch (days)
+        {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+            price = 180 * days;
+            break;
+        default:
+            price = 180 * 3 + 150 * (days - 3);
+        }
+        printf("双人房，住宿%d天，价格为%d元.\n", days, price);
+        break;
+    case 3:
+        price = 1000 * days;
+        printf("豪华套房，住宿%d天，价格为%d元。\n", days, price);
+        break;
+    default:
+        printf("找不到匹配的房型。\n");
     }
+    return 0;
 }

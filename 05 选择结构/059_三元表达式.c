@@ -1,6 +1,7 @@
 #include <stdio.h>
 
-int main() {
+int main()
+{
     /*
     题目1：
     给定两个整数a = 2和b = 8。使用三元表达式，计算并打印出a与b的差值。
@@ -19,6 +20,8 @@ int main() {
     */
     int num = 98;
     (num > 50 && num % 7 == 0) ? printf("满足条件\n") : printf("不满足条件\n");
+
+    // 判断偶数
+    int number = 15;
+    (number % 2 == 0) ? printf("偶数") : printf("奇数");
 }
-
-
