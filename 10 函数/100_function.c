@@ -10,12 +10,14 @@
 */
 #include <stdio.h>
 
-void print_greetings(char* name) {
+void print_greetings(char *name)
+{
     printf("%s，好久不见！\n", name);
     printf("%s，今天天气不错哈。\n", name);
     printf("%s，你吃饭了吗？\n", name);
 }
 
-int main() {
+int main()
+{
     print_greetings("张三");
 }

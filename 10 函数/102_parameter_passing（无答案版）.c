@@ -17,3 +17,15 @@
 调用前，main里num的值为：...
 调用后，main里num的值为：...
 */
+#include <stdio.h>
+void pass_by_value(int a);
+void pass_by_pointer(int *b);
+
+int main()
+{
+}
+
+void pass_by_value(int a)
+{
+    printf("%d", a + 10);
+}

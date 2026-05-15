@@ -8,3 +8,8 @@
 打印格式：
 交换前：num_1是...，num_2是...
 */
+#include <stdio.h>
+int main()
+{
+    int num_1 = 5, num_ = 10;
+}

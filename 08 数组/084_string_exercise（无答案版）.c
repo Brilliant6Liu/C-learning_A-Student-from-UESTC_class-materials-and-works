@@ -17,3 +17,22 @@
     4、若查找的字符在字符串中，打印格式：字符'...'在字符串里首次出现时的索引值为：...
     5、若查找的字符不在字符串中，打印出“字符...不在字符串里”。
 */
+#include <stdio.h>
+#include <string.h>
+int main()
+{
+    char str[100];
+    printf("请输入字符串:");
+    scanf("%s", str);
+    int count = strlen(str);
+    pirntf("%d\n", count);
+
+    printf("你要查找的字符是:");
+    char ch;
+    int position = -1;
+    scanf("%c\n", ch);
+    for (int i = 0; i < count; i++)
+    {
+        if ()
+    }
+}

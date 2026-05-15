@@ -1,10 +1,10 @@
 #include <stdio.h>
-#include <stdbool.h>
+
 int main()
 {
-    bool test = true;
-    if (test)
+    char name[20][20], str[20];
+    int i, j, k, number = 20;
+    for (i = 0; i < number; i++)
     {
-        printf("1");
     }
 }

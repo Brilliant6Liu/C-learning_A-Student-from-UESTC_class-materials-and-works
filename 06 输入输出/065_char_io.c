@@ -8,22 +8,28 @@
 
 提示：大写字母的ASCII码值加上32，即为对应小写字母的ASCII码值
 */
+// 也可以这么写：
+// putchar(a - 'A' + 'a');
+
 #include <stdio.h>
 
-int main() {
+int main()
+{
     char ch;
 
     printf("请输入一个字母：");
     ch = getchar();
 
-    if (ch >= 'A' && ch <= 'Z') {
+    if (ch >= 'A' && ch <= 'Z')
+    {
         ch += 32;
-        
     }
-    else if (ch >= 'a' && ch <= 'z') {
+    else if (ch >= 'a' && ch <= 'z')
+    {
         ch -= 32;
     }
-    else {
+    else
+    {
         printf("你输入的不是一个有效的字母。\n");
         return 1;
     }

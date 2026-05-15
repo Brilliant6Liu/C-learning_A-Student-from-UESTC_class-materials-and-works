@@ -10,11 +10,12 @@
 */
 #include <stdio.h>
 
-int main() {
+int main()
+{
     int num_1 = 5;
     int num_2 = 10;
-    int* ptr_1 = &num_1;
-    int* ptr_2 = &num_2;
+    int *ptr_1 = &num_1;
+    int *ptr_2 = &num_2;
 
     printf("交换前：num_1是%d，num_2是%d\n", num_1, num_2);
     int temp = *ptr_1;

@@ -11,7 +11,34 @@
     在它前三位的字母是...
     在它后三位的字母是...（要求字母使用putchar输出）。
 */
- 
+// #include <stdio.h>
+// int main()
+// {
+//     char ch, prev = '?', next = '?';
+//     ch = getchar();
+//     if ('A' <= ch && ch <= 'Z')
+//     {
+//         if ('A' <= ch - 3 && ch - 3 <= 'Z')
+//         {
+//             putchar(ch - 3);
+//             putchar(ch - 2);
+//             putchar(ch - 1);
+//             putchar(ch + 1);
+//             putchar(ch + 2);
+//             putchar(ch + 3);
+//         }
+//         else
+//         {
+//             putchar(prev);
+//             return 1;
+//         }
+//     }
+//     else
+//     {
+//         printf("error");
+//         return 1;
+//     }
+// }
 
 /*
     练习2：
@@ -26,4 +53,17 @@
     2）进行除法时，若除数为0，就打印出错误提示“错误：除数不能为0。”。
     3）若运算符不是加减乘除中的任何一个，就打印出错误提示“错误：不是有效的运算符，仅支持加、减、乘、除运算。”。
 */
-
+#include <stdio.h>
+int main()
+{
+    double num_1 = 12.3;
+    double num_2 = 45.6;
+    char op;
+    double result = 0;
+    op = getchar();
+    switch (op)
+    {
+    case '+':
+        printf("%lf + %lf")
+    }
+}
