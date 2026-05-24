@@ -12,7 +12,8 @@
 */
 #include <stdio.h>
 
-int main() {
+int main()
+{
     double num_1;
     double num_2;
     double num_3;
@@ -26,8 +27,9 @@ int main() {
     printf("请输入第三个浮点数：\n");
     scanf("%lf", &num_3);
 
-    double* ptr_arr[3] = {&num_1, &num_2, &num_3};
-    for (int i = 0; i < 3; i++) {
+    double *ptr_arr[3] = {&num_1, &num_2, &num_3};
+    for (int i = 0; i < 3; i++)
+    {
         sum += *ptr_arr[i];
     }
     average = sum / 3;

@@ -7,12 +7,14 @@
 */
 #include <stdio.h>
 
-int main() {
+int main()
+{
     int arr[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    int* ptr = arr;
+    int *ptr = arr; // 等价于int* ptr = &arr[0];
 
-    while (ptr <= &arr[9]) {
-        printf("%d ",*ptr);
+    while (ptr <= &arr[9])
+    {
+        printf("%d ", *ptr);
         ptr += 2;
     }
     printf("\n");

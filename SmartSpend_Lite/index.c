@@ -1,31 +1,22 @@
-/*
-输入一个字符串，要求按相反的顺序输出各个字符。例如，输入为AbcD，则输出为DcbA。
-提示：这个题与习题4.1类似，但需注意的是：
-输入输出格式要求：
-    输入格式：string回车
-    输出格式：gnirts
-例如：
-输入：hello回车
-输出：olleh
-*/
+// 输入一个整数，作为一个整数数组的大小，输入数组，升序排列，奇数在偶数前面（冒泡）。
+
 #include <stdio.h>
+#include <string.h>
+
 int main()
 {
-    char a[500];
-    int b, sum = 0;
-    while (1)
+    int n;
+    printf("数组大小:");
+    scanf("%d", &n);
+    int *arr[n];
+    for (int i = 0; i < n; i++)
     {
-        b = getchar();
-        a[sum] = b;
-        sum++;
-        if (b == '\n')
-        {
-            break;
-        }
+        scanf("%d", *arr[i]);
     }
-    for (int i = sum - 2; i >= 0; i--)
+    for (int i = 0; i < n; i++)
     {
-        printf("%c", a[i]);
+        printf("%d", *arr[i]);
     }
+
     return 0;
 }

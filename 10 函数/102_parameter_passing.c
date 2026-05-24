@@ -19,17 +19,11 @@
 */
 #include <stdio.h>
 
-void pass_by_value(int num) {
-    num += 10;
-    printf("调用了函数，pass_by_value里num的值为：%d\n", num);
-}
+void pass_by_value(int num);
+void pass_by_pointer(int *ptr);
 
-void pass_by_pointer(int* ptr) {
-    *ptr += 10;
-    printf("调用了函数，ptr指向的值为：%d\n", *ptr);
-}
-
-int main() {
+int main()
+{
     int num = 10;
 
     printf("值传递：\n");
@@ -39,6 +33,18 @@ int main() {
 
     printf("指针传递：\n");
     printf("调用前，main里num的值为：%d\n", num);
-    pass_by_pointer(&num);
+    pass_by_pointer(&num); // 注意是&n
     printf("调用后，main里num的值为：%d\n", num);
+}
+
+void pass_by_value(int num)
+{
+    num += 10;
+    printf("调用了函数，pass_by_value里num的值为：%d\n", num);
+}
+
+void pass_by_pointer(int *ptr)
+{
+    *ptr += 10;
+    printf("调用了函数，ptr指向的值为：%d\n", *ptr);
 }
