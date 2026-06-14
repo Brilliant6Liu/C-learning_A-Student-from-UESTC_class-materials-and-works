@@ -1,30 +1,200 @@
+/* Ultimate,Chicken Hor.e - ma,n.c.,,
+    Ö÷³ÌĞò£º´°¿Ú´´½¨¡¢ÏûÏ¢Ñ­»·¡¢äÖÈ¾ÓëÊÂ¼ş´¦Àí */
 #include <windows.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 #include "config.h"
 
+/* ¶ÁÈ¡ assets/levels.txt ÖĞ¶¨ÒåµÄ¹Ø¿¨ÊıÁ¿ */
+int count_levels()
+{
+    FILE *fp = fopen("./assets/levels.txt", "r");
+    if (!fp)
+        return 0;
+    char line[256];
+    int cnt = 0;
+    while (fgets(line, sizeof(line), fp))
+    {
+        if (strstr(line, "[Level") != NULL)
+            cnt++;
+    }
+    fclose(fp);
+    return cnt;
+}
+
 // ---------------------------------------------------------
-// å…¨å±€çŠ¶æ€ä¸èµ„æºå®šä¹‰
+// Global game context and bitmaps
 // ---------------------------------------------------------
 GameContext ctx;
 
-// å›¾åƒèµ„æºå¥æŸ„
+/* È«¾Ö×ÊÔ´£ºÎ»Í¼Óë UI ×ÖÌå¾ä±ú */
 HBITMAP bmp_wall = NULL;
 HBITMAP bmp_trap = NULL;
 HBITMAP bmp_goal = NULL;
 HBITMAP bmp_chicken = NULL;
 HBITMAP bmp_rabbit = NULL;
 HBITMAP bmp_snake = NULL;
+HBITMAP bmp_title = NULL;
+HBITMAP bmp_char_bg = NULL;
+
+HFONT hFontTitle = NULL;
+HFONT hFontNormal = NULL;
+HFONT hFontBig = NULL;
+/* °´Å¥×¨ÓÃ×ÖÌå£ºĞ¡ºÅÓÃÓÚÔİÍ£°´Å¥£¬½Ï´óÓÃÓÚ½áËãÓë²Ëµ¥°´Å¥ */
+HFONT hFontBtnSmall = NULL;
+HFONT hFontBtnLarge = NULL;
+
+/* Ê¤Àû½çÃæ°´Å¥Î»ÖÃ£¨ÓÃÓÚÊó±ê¼ì²â£© */
+RECT victory_btn_menu = {0};
+RECT victory_btn_next = {0};
+
+/* ½« UTF-8/ANSI ÎÄ±¾×ª»»Îª¿í×Ö·û£¬·µ»Ø×Ö·û³¤¶È£¨²»º¬½áÊø·û£© */
+static int to_wide(const char *text, wchar_t **out)
+{
+    if (!text || !out)
+        return 0;
+    int len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, NULL, 0);
+    UINT codepage = CP_UTF8;
+    if (len <= 0)
+    {
+        len = MultiByteToWideChar(CP_ACP, 0, text, -1, NULL, 0);
+        codepage = CP_ACP;
+    }
+    if (len <= 0)
+        return 0;
+    *out = malloc(len * sizeof(wchar_t));
+    if (!*out)
+        return 0;
+    MultiByteToWideChar(codepage, 0, text, -1, *out, len);
+    return len - 1;
+}
+
+static void TextOutU(HDC hdc, int x, int y, const char *text)
+{
+    wchar_t *wbuf;
+    int len = to_wide(text, &wbuf);
+    if (len)
+    {
+        TextOutW(hdc, x, y, wbuf, len);
+        free(wbuf);
+    }
+}
+
+static void GetTextExtentPoint32U(HDC hdc, const char *text, SIZE *outSize)
+{
+    if (!outSize)
+        return;
+    outSize->cx = outSize->cy = 0;
+    wchar_t *wbuf;
+    int len = to_wide(text, &wbuf);
+    if (len)
+    {
+        GetTextExtentPoint32W(hdc, wbuf, len, outSize);
+        free(wbuf);
+    }
+}
+
+static int clamp(int value, int lo, int hi)
+{
+    return value < lo ? lo : value > hi ? hi
+                                        : value;
+}
+
+static const char *rating_text(float t)
+{
+    return t <= RATING_T1   ? "º»"
+           : t <= RATING_T2 ? "¶¥¼¶"
+           : t <= RATING_T3 ? "ÈËÉÏÈË"
+           : t <= RATING_T4 ? "NPC"
+                            : "À­ÍêÁË";
+}
+
+/* »æÖÆ°´Å¥£ºÌî³ä±³¾°¡¢¾ÓÖĞ»æÖÆÎÄ×Ö£»selected Îª¸ßÁÁ×´Ì¬ */
+static void draw_button(HDC hdc, RECT r, const char *text, int selected)
+{
+    HBRUSH brush = CreateSolidBrush(selected ? RGB(90, 110, 150) : RGB(60, 80, 120));
+    FillRect(hdc, &r, brush);
+    DeleteObject(brush);
+
+    // ¼ÆËãÎÄ×Ö³ß´çÒÔ±ãÔÚ°´Å¥ÄÚ²¿¾ÓÖĞ»æÖÆ
+    SIZE tsz = {0};
+    GetTextExtentPoint32U(hdc, text, &tsz);
+    int tx = r.left + ((r.right - r.left) - tsz.cx) / 2;
+    int ty = r.top + ((r.bottom - r.top) - tsz.cy) / 2;
+    TextOutU(hdc, tx, ty, text);
+
+    if (selected)
+    {
+        HPEN pen = CreatePen(PS_SOLID, 3, RGB(255, 255, 255));
+        HGDIOBJ old = SelectObject(hdc, pen);
+        HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, r.left - 4, r.top - 4, r.right + 4, r.bottom + 4);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, old);
+        DeleteObject(pen);
+    }
+}
+
+/* Ìî³ä¾ØĞÎÑÕÉ«µÄ¼òÒ×·â×° */
+static void fill_rect(HDC hdc, RECT rect, COLORREF color)
+{
+    HBRUSH brush = CreateSolidBrush(color);
+    FillRect(hdc, &rect, brush);
+    DeleteObject(brush);
+}
+
+/* ½«Î»Í¼°´Ä¿±ê¾ØĞÎËõ·Å²¢»æÖÆ */
+static void DrawBmpScaled(HDC hdcDest, int dx, int dy, int dw, int dh, HBITMAP hBmp)
+{
+    if (!hBmp)
+        return;
+    HDC hdcSrc = CreateCompatibleDC(hdcDest);
+    HBITMAP old = (HBITMAP)SelectObject(hdcSrc, hBmp);
+    BITMAP bm;
+    GetObject(hBmp, sizeof(bm), &bm);
+    SetStretchBltMode(hdcDest, HALFTONE);
+    StretchBlt(hdcDest, dx, dy, dw, dh, hdcSrc, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+    SelectObject(hdcSrc, old);
+    DeleteDC(hdcSrc);
+}
+
+// Pause/menu related rects
+RECT pause_btn = {0};
+RECT pause_menu_replay = {0};
+RECT pause_menu_selectlevel = {0};
+RECT pause_menu_selectchar = {0};
+RECT pause_menu_exit = {0};
+
+static void goto_level_select(GameContext *ctx)
+{
+    ctx->menu_selected_level = ctx->current_level;
+    if (ctx->menu_selected_level > ctx->unlocked_level)
+        ctx->menu_selected_level = ctx->unlocked_level;
+    ctx->level_select_from_char = 1;
+    ctx->state = STATE_LEVEL_SELECT;
+}
+
+static void start_level(GameContext *ctx, int level)
+{
+    ctx->current_level = clamp(level, 1, ctx->max_levels);
+    ctx->level_time = 0.0f;
+    ctx->prev_space_down = 0;
+    ctx->level_select_from_char = 1;
+    load_level(ctx, ctx->current_level);
+    ctx->state = STATE_PLAYING;
+}
 
 // ---------------------------------------------------------
-// çº¯ C è¯­è¨€ BMP åŠ è½½å™¨ (åˆå§‹åŒ–æ—¶è°ƒç”¨)
+// Bitmap loading helper (loads BMP file into HBITMAP)
 // ---------------------------------------------------------
 HBITMAP LoadBMPAuto(const char *filepath, HDC hdc)
 {
     FILE *file = fopen(filepath, "rb");
     if (!file)
     {
-        printf("Failed to load BMP: %s\n", filepath);
+        // °´ÓÃ»§ÒªÇó£º¾²Ä¬Ê§°Ü£¨²»µ¯³öÈÎºÎ¾¯¸æ£©£¬·µ»Ø NULL ÓÉµ÷ÓÃ·½¾ö¶¨ÊÇ·ñÏÔÊ¾
         return NULL;
     }
 
@@ -33,7 +203,6 @@ HBITMAP LoadBMPAuto(const char *filepath, HDC hdc)
     fread(&bfh, sizeof(BITMAPFILEHEADER), 1, file);
     fread(&bih, sizeof(BITMAPINFOHEADER), 1, file);
 
-    // è®¡ç®—å›¾åƒåƒç´ æ•°æ®çš„å¤§å° (æ”¯æŒ 24ä½ æˆ– 32ä½)
     int width = bih.biWidth;
     int height = abs(bih.biHeight);
     int stride = ((width * bih.biBitCount + 31) / 32) * 4;
@@ -44,7 +213,6 @@ HBITMAP LoadBMPAuto(const char *filepath, HDC hdc)
     fread(pixels, 1, dataSize, file);
     fclose(file);
 
-    // æ„é€ ä½å›¾ä¿¡æ¯å¹¶åˆ©ç”¨åŸç”Ÿ API ç”Ÿæˆ HBITMAP å¥æŸ„
     BITMAPINFO bmi = {0};
     bmi.bmiHeader = bih;
     HBITMAP hBmp = CreateCompatibleBitmap(hdc, width, height);
@@ -55,7 +223,7 @@ HBITMAP LoadBMPAuto(const char *filepath, HDC hdc)
 }
 
 // ---------------------------------------------------------
-// é€æ˜è‰²æ¸²æŸ“å‡½æ•° (éå†åƒç´ è·³è¿‡ç²‰è‰²æ©ç )
+// Transparent BMP drawing helper using TransparentBlt
 // ---------------------------------------------------------
 void DrawTransparentBmp(HDC hdcDest, int destX, int destY, int width, int height, HBITMAP hBmp)
 {
@@ -63,60 +231,234 @@ void DrawTransparentBmp(HDC hdcDest, int destX, int destY, int width, int height
         return;
 
     HDC hdcSrc = CreateCompatibleDC(hdcDest);
-    SelectObject(hdcSrc, hBmp);
+    HBITMAP hbmOld = (HBITMAP)SelectObject(hdcSrc, hBmp);
 
-    // ä¸¥æ ¼æŒ‰ç…§çº¯ C æ‰‹å·¥éå†åƒç´ ï¼Œè·³è¿‡ RGB(255,0,255)
-    for (int i = 0; i < width; i++)
-    {
-        for (int j = 0; j < height; j++)
-        {
-            COLORREF color = GetPixel(hdcSrc, i, j);
-            if (color != RGB(255, 0, 255))
-            {
-                SetPixel(hdcDest, destX + i, destY + j, color);
-            }
-        }
-    }
+    /* Ê¹ÓÃÍ¸Ã÷ÑÚÂëÑÕÉ« RGB(255,0,255) »æÖÆÎ»Í¼ */
+    TransparentBlt(hdcDest, destX, destY, width, height, hdcSrc, 0, 0, width, height, RGB(255, 0, 255));
+
+    SelectObject(hdcSrc, hbmOld);
     DeleteDC(hdcSrc);
 }
 
 // ---------------------------------------------------------
-// æ¸¸æˆçŠ¶æ€æœºä¸ç”»é¢æ¸²æŸ“åˆ†å‘
+// UI and game state rendering
 // ---------------------------------------------------------
+/* äÖÈ¾ÓÎÏ·µ±Ç°½çÃæ£º¸ù¾İ ctx.state »æÖÆ²»Í¬ UI */
 void RenderGame(HDC hdcMem)
 {
-    // ç»˜åˆ¶é»‘è‰²èƒŒæ™¯åº•è‰²
-    RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    HBRUSH hBgBrush = CreateSolidBrush(RGB(0, 0, 0));
-    FillRect(hdcMem, &bgRect, hBgBrush);
-    DeleteObject(hBgBrush);
-
-    SetBkMode(hdcMem, TRANSPARENT);
-    SetTextColor(hdcMem, RGB(255, 255, 255));
+    SetBkMode(hdcMem, TRANSPARENT); // ÉèÖÃÎÄ±¾±³¾°ÎªÍ¸Ã÷
 
     if (ctx.state == STATE_MENU)
     {
-        const char *title = "=== Super Chicken Engine ===";
-        const char *prompt = "Press ENTER to Character Select";
-        TextOutA(hdcMem, SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT / 2 - 20, title, strlen(title));
-        TextOutA(hdcMem, SCREEN_WIDTH / 2 - 110, SCREEN_HEIGHT / 2 + 20, prompt, strlen(prompt));
+        /* Ö÷²Ëµ¥£º»æÖÆ±êÌâ±³¾°¡¢ÌáÊ¾Óë°æ±¾ĞÅÏ¢ */
+
+        if (bmp_title)
+        {
+            DrawBmpScaled(hdcMem, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bmp_title);
+        }
+        else
+        {
+            RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+            HBRUSH hBgBrush = CreateSolidBrush(RGB(20, 30, 50));
+            FillRect(hdcMem, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+        }
+
+        const char *prompt = ">>> °´ Enter ¿ªÊ¼ÓÎÏ· <<<";
+        // ±³¾°ÎªÇ³É«Í¼Ê±Ê¹ÓÃÉîÉ«ÎÄ×ÖÒÔÌá¸ß¶Ô±È¶È
+        SetTextColor(hdcMem, RGB(30, 30, 30));
+        SelectObject(hdcMem, hFontNormal);
+        int center = SCREEN_WIDTH / 2;
+        int promptY = 420;
+
+        SIZE textSize;
+        GetTextExtentPoint32U(hdcMem, prompt, &textSize);
+        int padding = 25;
+        RECT boxRect = {
+            center - (textSize.cx / 2) - padding,
+            promptY - padding,
+            center + (textSize.cx / 2) + padding,
+            promptY + textSize.cy + padding};
+
+        // Ê¹ÓÃÉîÉ«±ß¿òÒÔ±ãÔÚÇ³É«±êÌâÍ¼ÉÏ¿É¼û
+        HPEN hFramePen = CreatePen(PS_SOLID, 2, RGB(30, 30, 30));
+        HPEN hOldPen = (HPEN)SelectObject(hdcMem, hFramePen);
+        HBRUSH hOldBrush = (HBRUSH)SelectObject(hdcMem, GetStockObject(NULL_BRUSH));
+        Rectangle(hdcMem, boxRect.left, boxRect.top, boxRect.right, boxRect.bottom);
+        SelectObject(hdcMem, hOldBrush);
+        SelectObject(hdcMem, hOldPen);
+        DeleteObject(hFramePen);
+
+        TextOutU(hdcMem, center - (textSize.cx / 2), promptY, prompt);
+
+        SetTextColor(hdcMem, RGB(30, 30, 30));
+        const char *version = "v1.0.0 Powered by Win32 GDI";
+        TextOutU(hdcMem, 10, SCREEN_HEIGHT - 30, version);
     }
     else if (ctx.state == STATE_CHAR_SELECT)
     {
-        const char *prompt = "Select Skin: [1] Chicken  [2] Rabbit  [3] Snake";
-        TextOutA(hdcMem, SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT / 2 - 50, prompt, strlen(prompt));
+        SetTextColor(hdcMem, RGB(30, 30, 30));
+        SelectObject(hdcMem, hFontBig);
+        // character select background (scaled image if available)
+        if (bmp_char_bg)
+            DrawBmpScaled(hdcMem, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bmp_char_bg);
+        else
+        {
+            RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+            HBRUSH hBgBrush = CreateSolidBrush(RGB(30, 30, 30));
+            FillRect(hdcMem, &bgRect, hBgBrush);
+            DeleteObject(hBgBrush);
+        }
 
-        // æ¸²æŸ“å½“å‰é€‰æ‹©çš„è§’è‰²é¢„è§ˆ
-        HBITMAP previewBmp = bmp_chicken;
-        if (ctx.selected_char == CHAR_RABBIT)
-            previewBmp = bmp_rabbit;
-        if (ctx.selected_char == CHAR_SNAKE)
-            previewBmp = bmp_snake;
-        DrawTransparentBmp(hdcMem, SCREEN_WIDTH / 2 - 20, SCREEN_HEIGHT / 2, TILE_SIZE, TILE_SIZE, previewBmp);
+        // Ñ¡½ÇÒ³ÃæÔÚÇ³É«±³¾°ÏÂÊ¹ÓÃÉîÉ«±êÌâÎÄ×Ö²¢¾ÓÖĞÏÔÊ¾
+        SetTextColor(hdcMem, RGB(30, 30, 30));
+        SelectObject(hdcMem, hFontTitle);
+        const char *title = "½ÇÉ«Ñ¡Ôñ";
+        SIZE titleSz;
+        GetTextExtentPoint32U(hdcMem, title, &titleSz);
+        TextOutU(hdcMem, (SCREEN_WIDTH - titleSz.cx) / 2, 100, title);
+
+        /* ½ÇÉ«Ñ¡Ôñ£º²¼¾Ö²ÎÊı */
+        int boxW = 120, boxH = 150;
+        int gap = 80;
+        int startX = (SCREEN_WIDTH - (3 * boxW + 2 * gap)) / 2;
+        int startY = 180;
+        /* ½ÇÉ«×ÊÔ´ÓëÃû³Æ */
+        HBITMAP charBmps[3] = {bmp_chicken, bmp_rabbit, bmp_snake};
+        const char *charNames[3] = {"[1] Ææ¿Ë", "[2] °îÄá", "[3] ÉßË»Ë»"};
+        CharacterType charTypes[3] = {CHAR_CHICKEN, CHAR_RABBIT, CHAR_SNAKE};
+
+        SelectObject(hdcMem, hFontNormal);
+
+        /* ±éÀúÈı¸ö½ÇÉ«¿¨Æ¬²¢»æÖÆ */
+        for (int i = 0; i < 3; i++)
+        {
+            int cx = startX + i * (boxW + gap);
+            int cy = startY;
+            /* Ñ¡ÖĞÏî¸ßÁÁÏÔÊ¾ */
+            if (ctx.selected_char == charTypes[i])
+            {
+                RECT highlight = {cx - 5, cy - 5, cx + boxW + 5, cy + boxH + 5};
+                HBRUSH hHighBrush = CreateSolidBrush(RGB(255, 50, 50));
+                FillRect(hdcMem, &highlight, hHighBrush);
+                DeleteObject(hHighBrush);
+            }
+            /* ¿¨Æ¬±³¾° */
+            RECT cardRect = {cx, cy, cx + boxW, cy + boxH};
+            HBRUSH hCardBrush = CreateSolidBrush(RGB(60, 60, 80));
+            FillRect(hdcMem, &cardRect, hCardBrush);
+            DeleteObject(hCardBrush);
+            /* »æÖÆ½ÇÉ«Í¼Ïñ */
+            DrawTransparentBmp(hdcMem, cx + (boxW - TILE_SIZE) / 2, cy + 30, TILE_SIZE, TILE_SIZE, charBmps[i]);
+            /* »æÖÆ½ÇÉ«Ãû³Æ */
+            SetTextColor(hdcMem, (ctx.selected_char == charTypes[i]) ? RGB(255, 255, 100) : RGB(200, 200, 200));
+            TextOutU(hdcMem, cx + 25, cy + 100, charNames[i]);
+        }
+
+        // µ×²¿ÌáÊ¾Ò²Ê¹ÓÃÉîÉ«ÒÔ±ãÔÚÇ³É«±³¾°ÉÏ¿É¶Á
+        SetTextColor(hdcMem, RGB(30, 30, 30));
+        const char *prompt = "°´ 1/2/3 Ñ¡Ôñ½ÇÉ«£¬Enter ¿ªÊ¼";
+        TextOutU(hdcMem, SCREEN_WIDTH / 2 - 160, 480, prompt);
+    }
+    else if (ctx.state == STATE_LEVEL_SELECT)
+    {
+        RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+        HBRUSH hBgBrush = CreateSolidBrush(RGB(30, 40, 70));
+        FillRect(hdcMem, &bgRect, hBgBrush);
+        DeleteObject(hBgBrush);
+
+        SetTextColor(hdcMem, RGB(255, 255, 255));
+        SelectObject(hdcMem, hFontTitle);
+        const char *title = "¹Ø¿¨Ñ¡Ôñ";
+        TextOutU(hdcMem, SCREEN_WIDTH / 2 - 100, 40, title);
+
+        SelectObject(hdcMem, hFontNormal);
+        int cols = 3; // 3 columns
+        int rows = 4; // 4 rows
+        int boxW = 140, boxH = 100;
+        int gap = 20;
+        int total = ctx.max_levels;
+        if (total > cols * rows)
+            total = cols * rows; // show up to 12 slots
+        int startX = (SCREEN_WIDTH - (cols * boxW + (cols - 1) * gap)) / 2;
+        int startY = 120;
+        char buf[64];
+        for (int i = 0; i < total; i++)
+        {
+            int idx = i + 1;
+            int cx = startX + (i % cols) * (boxW + gap);
+            int cy = startY + (i / cols) * (boxH + gap);
+
+            RECT box = {cx, cy, cx + boxW, cy + boxH};
+            /* Ñ¡ÖĞÏî¸ßÁÁ£ºÒÔÌî³äÉ«Í»³öÕû¸ö¿ò */
+            if (idx == ctx.menu_selected_level)
+            {
+                HBRUSH hSelBrush = CreateSolidBrush(RGB(255, 215, 0));
+                FillRect(hdcMem, &box, hSelBrush);
+                DeleteObject(hSelBrush);
+            }
+            else
+            {
+                HBRUSH hBoxBrush = CreateSolidBrush(RGB(80, 90, 120));
+                FillRect(hdcMem, &box, hBoxBrush);
+                DeleteObject(hBoxBrush);
+            }
+
+            // Ëø¶¨ÏÔÊ¾£¨ÈÔÈ»ÒÔËøÎÄ×Ö±íÊ¾£©
+            if (idx > ctx.unlocked_level)
+            {
+                SetTextColor(hdcMem, RGB(100, 100, 100));
+                const char *locked = "Ëø";
+                TextOutU(hdcMem, cx + boxW / 2 - 8, cy + boxH / 2 - 8, locked);
+                sprintf(buf, "%d", idx);
+                TextOutU(hdcMem, cx + 6, cy + 6, buf);
+            }
+            else
+            {
+                // ÏÔÊ¾¹Ø¿¨ºÅ£ºÊ¹ÓÃ¸ü´ó×ÖÌå¾ÓÖĞ»æÖÆ£¬Ñ¡ÖĞÏîÊ¹ÓÃÉîÉ«ÎÄ×ÖÒÔ±ãÔÚ¸ßÁÁ±³¾°ÉÏ¿É¶Á
+                if (idx == ctx.menu_selected_level)
+                    SetTextColor(hdcMem, RGB(30, 30, 30));
+                else
+                    SetTextColor(hdcMem, RGB(220, 220, 220));
+
+                sprintf(buf, "%d", idx);
+                // Ê¹ÓÃ±êÌâ×ÖÌå·Å´ó¹Ø¿¨Êı×Ö²¢¾ÓÖĞ
+                SelectObject(hdcMem, hFontTitle);
+                SIZE numSz;
+                GetTextExtentPoint32U(hdcMem, buf, &numSz);
+                TextOutU(hdcMem, cx + (boxW - numSz.cx) / 2, cy + (boxH - numSz.cy) / 2, buf);
+
+                // ÒÑÍê³ÉÏÔÊ¾ÆÀ·Ö£¨Èç¹ûÓĞ£©£¬Ê¹ÓÃÕı³£×ÖÌå»æÖÆÔÚµ×²¿
+                float bt = 0.0f;
+                if (idx <= MAX_LEVELS)
+                    bt = ctx.best_times[idx];
+                if (bt > 0.0f)
+                {
+                    SelectObject(hdcMem, hFontNormal);
+                    SetTextColor(hdcMem, (idx == ctx.menu_selected_level) ? RGB(30, 30, 30) : RGB(200, 230, 140));
+                    TextOutU(hdcMem, cx + 8, cy + boxH - 24, rating_text(bt));
+                }
+                else
+                {
+                    // ÈôÎŞÆÀ·Ö£¬»Ö¸´Ä¬ÈÏĞ¡ºÅ×ÖÌåÒÔÃâÓ°ÏìÏÂÒ»Ïî»æÖÆ
+                    SelectObject(hdcMem, hFontNormal);
+                }
+            }
+        }
+
+        const char *hint = "¡û/¡ú/¡ü/¡ı Ñ¡Ôñ¹Ø¿¨£¬Enter ¿ªÊ¼";
+        SetTextColor(hdcMem, RGB(180, 180, 200));
+        TextOutU(hdcMem, SCREEN_WIDTH / 2 - 140, SCREEN_HEIGHT - 40, hint);
     }
     else if (ctx.state == STATE_PLAYING)
     {
-        // æ¸²æŸ“ 15x20 ç½‘æ ¼åœ°å›¾
+        /* ÓÎÏ·ÖĞ£º»æÖÆµØÍ¼¡¢Íæ¼ÒÓë UI */
+        RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+        HBRUSH hBgBrush = CreateSolidBrush(RGB(135, 206, 235));
+        FillRect(hdcMem, &bgRect, hBgBrush);
+        DeleteObject(hBgBrush);
+
+        /* »æÖÆµØÍ¼¸ñ×Ó */
         for (int r = 0; r < MAP_ROWS; r++)
         {
             for (int c = 0; c < MAP_COLS; c++)
@@ -134,23 +476,138 @@ void RenderGame(HDC hdcMem)
             }
         }
 
-        // æ¸²æŸ“ç©å®¶
+        /* »æÖÆÍæ¼Ò½ÇÉ« */
         HBITMAP pBmp = bmp_chicken;
         if (ctx.selected_char == CHAR_RABBIT)
             pBmp = bmp_rabbit;
         if (ctx.selected_char == CHAR_SNAKE)
             pBmp = bmp_snake;
         DrawTransparentBmp(hdcMem, (int)ctx.player.x, (int)ctx.player.y, TILE_SIZE, TILE_SIZE, pBmp);
+
+        /* ×óÉÏ½Ç£ºµ±Ç°¹Ø¿¨±àºÅÓëÔİÍ£°´Å¥ */
+        SelectObject(hdcMem, hFontNormal);
+        SetTextColor(hdcMem, RGB(30, 30, 30));
+        char lvlbuf[64];
+        sprintf(lvlbuf, "¹Ø¿¨ %d", ctx.current_level);
+        pause_btn.left = 10;
+        pause_btn.top = 10;
+        pause_btn.right = 10 + 56;
+        pause_btn.bottom = 10 + 28;
+        SelectObject(hdcMem, hFontBtnSmall);
+        draw_button(hdcMem, pause_btn, "ÔİÍ£", 0);
+        SelectObject(hdcMem, hFontNormal);
+        TextOutU(hdcMem, pause_btn.right + 8, 12, lvlbuf);
+
+        // ÓÒÉÏ½Ç£º¼ÆÊ±Æ÷
+        char timebuf[64];
+        sprintf(timebuf, "Ê±¼ä: %.2f s", ctx.level_time);
+        SIZE tsz;
+        GetTextExtentPoint32U(hdcMem, timebuf, &tsz);
+        TextOutU(hdcMem, SCREEN_WIDTH - tsz.cx - 10, 10, timebuf);
     }
     else if (ctx.state == STATE_VICTORY)
     {
-        const char *prompt = "VICTORY! All levels completed.";
-        TextOutA(hdcMem, SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT / 2, prompt, strlen(prompt));
+        RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+        fill_rect(hdcMem, bgRect, RGB(10, 10, 20));
+
+        SelectObject(hdcMem, hFontBig);
+        SetTextColor(hdcMem, RGB(255, 220, 80));
+        char finishbuf[128];
+        sprintf(finishbuf, "Í¨¹ØÊ±¼ä: %.2f s", ctx.level_time);
+        TextOutU(hdcMem, SCREEN_WIDTH / 2 - 160, SCREEN_HEIGHT / 2 - 80, finishbuf);
+
+        const char *rating = rating_text(ctx.level_time);
+        SelectObject(hdcMem, hFontTitle);
+        SetTextColor(hdcMem, RGB(255, 255, 255));
+        TextOutU(hdcMem, SCREEN_WIDTH / 2 - 40, SCREEN_HEIGHT / 2 - 20, rating);
+
+        RECT btnMenu = {SCREEN_WIDTH / 2 - 140, SCREEN_HEIGHT / 2 + 40, SCREEN_WIDTH / 2 - 20, SCREEN_HEIGHT / 2 + 80};
+        RECT btnNext = {SCREEN_WIDTH / 2 + 20, SCREEN_HEIGHT / 2 + 40, SCREEN_WIDTH / 2 + 140, SCREEN_HEIGHT / 2 + 80};
+        SelectObject(hdcMem, hFontBtnLarge);
+        draw_button(hdcMem, btnMenu, "²Ëµ¥", ctx.victory_choice == 0);
+        draw_button(hdcMem, btnNext, "ÏÂÒ»¹Ø", ctx.victory_choice != 0);
+        SelectObject(hdcMem, hFontTitle);
+
+        victory_btn_menu = btnMenu;
+        victory_btn_next = btnNext;
+
+        SetTextColor(hdcMem, RGB(180, 180, 200));
+        TextOutU(hdcMem, SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT / 2 + 90, "¡û/¡ú Ñ¡Ôñ£¬Enter È·ÈÏ");
+    }
+    else if (ctx.state == STATE_PAUSED)
+    {
+        // handled in main loop: draw semi-transparent overlay and centered options
+        // create 50% alpha overlay across whole screen
+        HDC tmp = CreateCompatibleDC(hdcMem);
+        BITMAPINFO bmi = {0};
+        bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth = SCREEN_WIDTH;
+        bmi.bmiHeader.biHeight = -SCREEN_HEIGHT; // top-down
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+        void *bits = NULL;
+        HBITMAP hbm = CreateDIBSection(tmp, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+        HBITMAP old = (HBITMAP)SelectObject(tmp, hbm);
+        DWORD *px = (DWORD *)bits;
+        int pixels = SCREEN_WIDTH * SCREEN_HEIGHT;
+        for (int i = 0; i < pixels; i++)
+            px[i] = (128 << 24) | (0 << 16) | (0 << 8) | 0;
+        BLENDFUNCTION bf = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
+        AlphaBlend(hdcMem, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, tmp, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bf);
+        SelectObject(tmp, old);
+        DeleteObject(hbm);
+        DeleteDC(tmp);
+
+        // centered menu
+        int mw = 360, mh = 300;
+        int mx = (SCREEN_WIDTH - mw) / 2;
+        int my = (SCREEN_HEIGHT - mh) / 2;
+        int bw = 220, bh = 44;
+        int bx = mx + (mw - bw) / 2;
+        int by = my + 80;
+        pause_menu_replay.left = bx;
+        pause_menu_replay.top = by;
+        pause_menu_replay.right = bx + bw;
+        pause_menu_replay.bottom = by + bh;
+        /* Ê¹ÓÃ½Ï´ó°´Å¥×ÖÌå»æÖÆÔİÍ£²Ëµ¥Ïî */
+        SelectObject(hdcMem, hFontBtnLarge);
+        draw_button(hdcMem, pause_menu_replay, "ÖØÍæ", 0);
+        pause_menu_selectlevel.left = bx;
+        pause_menu_selectlevel.top = by + 56;
+        pause_menu_selectlevel.right = bx + bw;
+        pause_menu_selectlevel.bottom = by + 56 + bh;
+        draw_button(hdcMem, pause_menu_selectlevel, "Ñ¡¹Ø", 0);
+        pause_menu_selectchar.left = bx;
+        pause_menu_selectchar.top = by + 112;
+        pause_menu_selectchar.right = bx + bw;
+        pause_menu_selectchar.bottom = by + 112 + bh;
+        draw_button(hdcMem, pause_menu_selectchar, "Ñ¡Ôñ½ÇÉ«", 0);
+        pause_menu_exit.left = bx;
+        pause_menu_exit.top = by + 168;
+        pause_menu_exit.right = bx + bw;
+        pause_menu_exit.bottom = by + 168 + bh;
+        draw_button(hdcMem, pause_menu_exit, "ÍË³öÓÎÏ·", 0);
+        /* »Ö¸´Ä¬ÈÏ×ÖÌå */
+        SelectObject(hdcMem, hFontNormal);
+    }
+    else if (ctx.state == STATE_GAME_COMPLETE)
+    {
+        RECT bgRect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+        HBRUSH hBg = CreateSolidBrush(RGB(10, 10, 10));
+        FillRect(hdcMem, &bgRect, hBg);
+        DeleteObject(hBg);
+        SelectObject(hdcMem, hFontTitle);
+        SetTextColor(hdcMem, RGB(255, 220, 0));
+        const char *msg = "£¿£¡Ç¿Ç¿£¡£¿";
+        SIZE tsz;
+        GetTextExtentPoint32U(hdcMem, msg, &tsz);
+        TextOutU(hdcMem, (SCREEN_WIDTH - tsz.cx) / 2, (SCREEN_HEIGHT - tsz.cy) / 2, msg);
     }
 }
 
 // ---------------------------------------------------------
-// Win32 æ¶ˆæ¯å›è°ƒå¤„ç†
+// Win32 window procedure
 // ---------------------------------------------------------
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -159,40 +616,168 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_CREATE:
     {
         HDC hdc = GetDC(hwnd);
-        // ä¸¥ç¦ç»å¯¹è·¯å¾„ï¼Œå¿…é¡»æŒ‰ç…§åŸºäºå·¥ä½œç›®å½•çš„ç›¸å¯¹è·¯å¾„åŠ è½½
+
+        /* ¼ÓÔØÎ»Í¼×ÊÔ´²¢´´½¨ UI ×ÖÌå */
         bmp_wall = LoadBMPAuto("./assets/textures/wall.bmp", hdc);
         bmp_trap = LoadBMPAuto("./assets/textures/trap.bmp", hdc);
         bmp_goal = LoadBMPAuto("./assets/textures/goal.bmp", hdc);
+        // °´ÓÃ»§ÒªÇó£º½ö¼ÓÔØÖ¸¶¨µÄ BMP Â·¾¶£¨¾²Ä¬Ê§°Ü£©
+        bmp_title = LoadBMPAuto("./assets/textures/title.bmp", hdc);
+        bmp_char_bg = LoadBMPAuto("./assets/textures/Selectcharacter.bmp", hdc);
         bmp_chicken = LoadBMPAuto("./assets/textures/char_chicken.bmp", hdc);
         bmp_rabbit = LoadBMPAuto("./assets/textures/char_rabbit.bmp", hdc);
         bmp_snake = LoadBMPAuto("./assets/textures/char_snake.bmp", hdc);
+
+        // ×Ô¶¨Òå UI ×ÖÌå£¨Ê¹ÓÃÓ¢ÎÄ×ÖÌåÃû±ÜÃâ±àÂëÎÊÌâ£©
+        hFontTitle = CreateFontA(36, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Microsoft YaHei");
+        hFontNormal = CreateFontA(20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Microsoft YaHei");
+        hFontBig = CreateFontA(48, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "SimHei");
+        hFontBtnSmall = CreateFontA(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Microsoft YaHei");
+        hFontBtnLarge = CreateFontA(22, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Microsoft YaHei");
+
         ReleaseDC(hwnd, hdc);
 
         init_game(&ctx);
+        // È·±£²Ëµ¥ÏÔÊ¾ÕıÈ·
+        ctx.state = STATE_MENU;
         break;
     }
     case WM_KEYDOWN:
     {
-        if (ctx.state == STATE_MENU && wParam == VK_RETURN)
+        if (ctx.state == STATE_MENU)
         {
-            ctx.state = STATE_CHAR_SELECT;
+            if (wParam == VK_RETURN)
+            {
+                ctx.state = STATE_CHAR_SELECT;
+            }
         }
         else if (ctx.state == STATE_CHAR_SELECT)
         {
+            /* ½ÇÉ«Ñ¡Ôñ£º¼üÅÌÊäÈë´¦Àí */
             if (wParam == '1')
             {
                 ctx.selected_char = CHAR_CHICKEN;
-                ctx.state = STATE_PLAYING;
+                goto_level_select(&ctx);
             }
             if (wParam == '2')
             {
                 ctx.selected_char = CHAR_RABBIT;
-                ctx.state = STATE_PLAYING;
+                goto_level_select(&ctx);
             }
             if (wParam == '3')
             {
                 ctx.selected_char = CHAR_SNAKE;
-                ctx.state = STATE_PLAYING;
+                goto_level_select(&ctx);
+            }
+            if (wParam == VK_LEFT)
+                ctx.selected_char = (ctx.selected_char == CHAR_CHICKEN) ? CHAR_SNAKE : ctx.selected_char - 1;
+            if (wParam == VK_RIGHT)
+                ctx.selected_char = (ctx.selected_char == CHAR_SNAKE) ? CHAR_CHICKEN : ctx.selected_char + 1;
+            if (wParam == VK_RETURN)
+                goto_level_select(&ctx);
+        }
+        else if (ctx.state == STATE_LEVEL_SELECT)
+        {
+            if (ctx.menu_selected_level > ctx.unlocked_level)
+                ctx.menu_selected_level = ctx.unlocked_level;
+            int cols = 3; // Óë»æÖÆÊ±µÄÁĞÊı±£³ÖÒ»ÖÂ
+            if (wParam == VK_LEFT)
+            {
+                if (ctx.menu_selected_level > 1)
+                    ctx.menu_selected_level--;
+            }
+            else if (wParam == VK_RIGHT)
+            {
+                if (ctx.menu_selected_level < ctx.unlocked_level)
+                    ctx.menu_selected_level++;
+            }
+            else if (wParam == VK_UP)
+            {
+                if (ctx.menu_selected_level > cols)
+                    ctx.menu_selected_level -= cols;
+                else
+                    ctx.menu_selected_level = 1;
+            }
+            else if (wParam == VK_DOWN)
+            {
+                if (ctx.menu_selected_level + cols <= ctx.unlocked_level)
+                    ctx.menu_selected_level += cols;
+                else
+                    ctx.menu_selected_level = ctx.unlocked_level;
+            }
+            else if (wParam == VK_RETURN)
+            {
+                if (ctx.menu_selected_level <= ctx.unlocked_level)
+                {
+                    if (ctx.level_select_from_char)
+                        start_level(&ctx, ctx.menu_selected_level);
+                    else
+                        ctx.state = STATE_CHAR_SELECT;
+                }
+            }
+        }
+        else if (ctx.state == STATE_VICTORY)
+        {
+            if (wParam == VK_RETURN)
+            {
+                if (ctx.victory_choice == 0)
+                    goto_level_select(&ctx);
+                else
+                    start_level(&ctx, ctx.current_level < ctx.max_levels ? ctx.current_level + 1 : ctx.current_level);
+            }
+            else if (wParam == VK_LEFT || wParam == VK_RIGHT)
+            {
+                ctx.victory_choice = !ctx.victory_choice;
+            }
+        }
+        break;
+    }
+    case WM_LBUTTONDOWN:
+    {
+        int mx = (int)(short)LOWORD(lParam);
+        int my = (int)(short)HIWORD(lParam);
+        POINT pt = {mx, my};
+        if (ctx.state == STATE_PLAYING)
+        {
+            if (PtInRect(&pause_btn, pt))
+            {
+                ctx.state = STATE_PAUSED;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+        }
+        else if (ctx.state == STATE_VICTORY)
+        {
+            if (PtInRect(&victory_btn_menu, pt))
+            {
+                goto_level_select(&ctx);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            else if (PtInRect(&victory_btn_next, pt))
+            {
+                start_level(&ctx, ctx.current_level < ctx.max_levels ? ctx.current_level + 1 : ctx.current_level);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+        }
+        else if (ctx.state == STATE_PAUSED)
+        {
+            if (PtInRect(&pause_menu_replay, pt))
+            {
+                start_level(&ctx, ctx.current_level);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            else if (PtInRect(&pause_menu_selectlevel, pt))
+            {
+                goto_level_select(&ctx);
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            else if (PtInRect(&pause_menu_selectchar, pt))
+            {
+                ctx.state = STATE_CHAR_SELECT;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            else if (PtInRect(&pause_menu_exit, pt))
+            {
+                PostQuitMessage(0);
             }
         }
         break;
@@ -202,14 +787,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
 
-        // GDI åŸç”ŸåŒç¼“å†²åƒç´ ç¼“å†²åŒºåˆ›å»º
+        // Ê¹ÓÃ¼æÈİÄÚ´æ DC ½øĞĞË«»º³å»æÖÆ
         HDC hdcMem = CreateCompatibleDC(hdc);
         HBITMAP hbmMem = CreateCompatibleBitmap(hdc, SCREEN_WIDTH, SCREEN_HEIGHT);
         HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
 
         RenderGame(hdcMem);
 
-        // å°†åå°ç”»å¸ƒæ‹·è´è‡³å‰å°æ˜¾ç¤ºå±å¹•
+        // ½«ÄÚ´æ»º³åÇøµÄ»­Ãæ¸´ÖÆµ½´°¿Ú DC
         BitBlt(hdc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, hdcMem, 0, 0, SRCCOPY);
 
         SelectObject(hdcMem, hbmOld);
@@ -220,19 +805,34 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     }
     case WM_DESTROY:
     {
-        // æ˜¾å¼é‡Šæ”¾å†…å­˜åŠ GDI å¥æŸ„é˜²æ­¢æ³„éœ²
+        /* ´°¿ÚÏú»Ù£ºÊÍ·ÅËùÓĞ GDI ×ÊÔ´ */
         if (bmp_wall)
             DeleteObject(bmp_wall);
         if (bmp_trap)
             DeleteObject(bmp_trap);
         if (bmp_goal)
             DeleteObject(bmp_goal);
+        if (bmp_title)
+            DeleteObject(bmp_title);
+        if (bmp_char_bg)
+            DeleteObject(bmp_char_bg);
         if (bmp_chicken)
             DeleteObject(bmp_chicken);
         if (bmp_rabbit)
             DeleteObject(bmp_rabbit);
         if (bmp_snake)
             DeleteObject(bmp_snake);
+
+        if (hFontTitle)
+            DeleteObject(hFontTitle);
+        if (hFontNormal)
+            DeleteObject(hFontNormal);
+        if (hFontBig)
+            DeleteObject(hFontBig);
+        if (hFontBtnSmall)
+            DeleteObject(hFontBtnSmall);
+        if (hFontBtnLarge)
+            DeleteObject(hFontBtnLarge);
 
         PostQuitMessage(0);
         break;
@@ -244,7 +844,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 // ---------------------------------------------------------
-// WinMain å…¥å£ä¸é«˜ç²¾åº¦å®šæ­¥é•¿ä¸»å¾ªç¯
+// WinMain and main loop
 // ---------------------------------------------------------
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -256,16 +856,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
     if (!RegisterClassA(&wc))
-    {
         return -1;
-    }
 
-    // åˆ›å»ºå›ºå®šå¤§å°çª—å£ï¼Œå¹¶è°ƒæ•´å®¢æˆ·åŒºé€‚é… 800x600
     RECT rect = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
     AdjustWindowRect(&rect, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
 
     HWND hwnd = CreateWindowA(
-        wc.lpszClassName, "Super Chicken Game Engine - Pure C",
+        wc.lpszClassName, "Ultimate Chicken Horse - Win32",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT,
         rect.right - rect.left, rect.bottom - rect.top,
@@ -276,13 +873,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
-    // é«˜ç²¾åº¦æ—¶é—´è®¡æ•°å™¨é…ç½®
+    // Ê¹ÓÃ¸ß¾«¶È¼ÆÊ±Æ÷ÊµÏÖ½üËÆ 60FPS µÄÓÎÏ·Ñ­»·
     LARGE_INTEGER freq, last_time, curr_time;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&last_time);
 
     float accumulator = 0.0f;
-    const float dt = 0.01667f; // é”å®š 1/60s æ­¥é•¿
+    const float dt = 0.01667f;
 
     MSG msg = {0};
     while (msg.message != WM_QUIT)
@@ -299,24 +896,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             last_time = curr_time;
             accumulator += frameTime;
 
-            // å½“ç´¯è®¡æ—¶é—´è¾¾åˆ°ä¸€å¸§é˜ˆå€¼ï¼Œè§¦å‘é€»è¾‘æ›´æ–°
             while (accumulator >= dt)
             {
                 if (ctx.state == STATE_PLAYING)
                 {
-                    // å¼‚æ­¥æ•è·ç‰©ç†é”®ç›˜çŠ¶æ€æ˜ å°„ä¸º 1/0
                     int k_left = (GetAsyncKeyState(VK_LEFT) & 0x8000) ? 1 : 0;
                     int k_right = (GetAsyncKeyState(VK_RIGHT) & 0x8000) ? 1 : 0;
                     int k_space = (GetAsyncKeyState(VK_SPACE) & 0x8000) ? 1 : 0;
+                    int k_space_edge = (k_space && !ctx.prev_space_down) ? 1 : 0;
+                    ctx.prev_space_down = k_space;
 
-                    update_game(&ctx, dt, k_left, k_right, k_space);
+                    update_game(&ctx, dt, k_left, k_right, k_space_edge);
                 }
                 accumulator -= dt;
             }
-
-            // è§¦å‘åŒç¼“å†²æ¸²æŸ“åˆ·æ–°
             InvalidateRect(hwnd, NULL, FALSE);
-            Sleep(1); // è®©å‡º CPU æ§åˆ¶æƒï¼Œé˜²æ­¢ 100% å ç”¨ç©ºè½¬
+            Sleep(1);
         }
     }
     return (int)msg.wParam;
