@@ -25,15 +25,6 @@ C:\mingw64\bin\gcc.exe -g "P:\C\Ultimate Chicken Horse\main.c" "P:\C\Ultimate Ch
 
 工作区中也已配置 VS Code 任务 `C/C++: gcc.exe 生成活动文件`，可用于快速编译当前活动文件。
 
-## 运行
-
-- 双击生成的 `UltimateChickenHorse.exe` 启动游戏。
-- 或在 PowerShell 中：
-
-```powershell
-Start-Process -FilePath "P:\C\Ultimate Chicken Horse\UltimateChickenHorse.exe" -WorkingDirectory "P:\C\Ultimate Chicken Horse"
-```
-
 ## 项目结构与分工
 
 - `config.h`：全局配置、常量、类型与跨模块函数原型。
@@ -76,11 +67,3 @@ Start-Process -FilePath "P:\C\Ultimate Chicken Horse\UltimateChickenHorse.exe" -
 
 - 目前未添加许可证文件。如需分发或协作，请在仓库根目录添加 `LICENSE`。
 - 欢迎提交改进（例如：更好的 UI、关卡编辑器或跨平台移植）。
-
----
-
-如果你需要，我可以：
-
-- 添加一份 `assets/levels.txt` 的示例关卡模板；
-- 生成英文版的 README；
-- 把 README 中的构建命令改为相对路径或适配其他编译器（MSVC / clang）。
